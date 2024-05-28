@@ -87,23 +87,3 @@ subprojects {
             enabled = false
         }
 }
-
-import java.util.regex.Pattern
-
-println('Java: ' + System.getProperty('java.version') + ' JVM: ' + System.getProperty('java.vm.version') + '(' + System.getProperty('java.vendor') + ') Arch: ' + System.getProperty('os.arch'))
-
-task incrementBuildNumber {
-    onlyIf { project.hasProperty('uniqueBuildNumber') }
-    doLast {
-        def propertiesName = 'gradle.properties'
-        // build number is stored in global gradle.properties
-        def propertiesFile = new File(project.gradle.gradleUserHomeDir, propertiesName)
-        if (!propertiesFile.canRead()) {
-            throw new FileNotFoundException("Could not read file ".concat(propertiesName))
-        }
-        def buildNumberMatcher = Pattern.compile("uniqueBuildNumber=(\\d+)").matcher(propertiesFile.getText())
-        buildNumberMatcher.find()
-        def versionCode = Integer.parseInt(buildNumberMatcher.group(1))
-        def propertiesContent = buildNumberMatcher.replaceAll("uniqueBuildNumber=" + ++versionCode)
-        propertiesFile.write(propertiesContent)
-    }
