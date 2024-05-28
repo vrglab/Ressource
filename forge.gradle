@@ -251,7 +251,7 @@ publishing {
     }
     repositories {
         maven {
-            name = 'FuzsModResources'
+            name = 'VrglabResources'
             url "file://" + project.hasProperty('mResources') ? "${project.findProperty('mResources')}/maven" : System.getenv('local_maven')
         }
     }
