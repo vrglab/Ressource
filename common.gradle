@@ -1,20 +1,16 @@
-plugins {
-    id 'fabric-loom' version '0.8.20'
-}
-
-repositories {
-    maven {
-        name = "Fabric"
-        url = "https://maven.fabricmc.net/"
-    }
-    mavenCentral()
-}
+apply plugin: 'fabric-loom'
+apply plugin: 'io.github.juuxel.loom-quiltflower'
 
 archivesBaseName = "${mName.replaceAll("[^a-zA-Z]", "")}"
 version = "v${mVersion}-${mcVersion}-Common"
 group = mMavenGroup
 
 repositories {
+     maven {
+        name = "Fabric"
+        url = "https://maven.fabricmc.net/"
+    }
+    mavenCentral()
     exclusiveContent {
         forRepository {
             maven {
