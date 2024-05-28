@@ -1,7 +1,9 @@
-apply plugin: 'io.github.juuxel.loom-quiltflower'
-apply plugin: 'me.hypherionmc.cursegradle'
-apply plugin: 'com.modrinth.minotaur'
-apply plugin: 'fabric-loom'
+plugins {
+     id 'io.github.juuxel.loom-quiltflower'
+     id 'me.hypherionmc.cursegradle'
+     id 'com.modrinth.minotaur'
+     id 'fabric-loom'
+}
 
 archivesBaseName = "${mName.replaceAll("[^a-zA-Z]", "")}"
 version = "v${mVersion}-${mcVersion}-Fabric"
