@@ -125,25 +125,6 @@ processResources {
 
     duplicatesStrategy DuplicatesStrategy.INCLUDE
 
-    // this will ensure that this task is redone when a value changes
-    inputs.property "modId", modId
-    inputs.property "modName", modName
-    inputs.property "modVersion", modVersion
-    inputs.property "modDescription", modDescription
-    inputs.property "modGroup", project.group
-    inputs.property "modPageUrl", modSourceUrl
-    inputs.property "modUpdateUrl", modUpdateUrl
-    inputs.property "modIssueUrl", modIssueUrl
-    inputs.property "modAuthor", modAuthor
-    inputs.property "modLicense", modLicense
-    inputs.property "minFMLVersion", libs.versions.forge.min.get().replaceAll("\\..*", "")
-    inputs.property "minForgeVersion", libs.versions.forge.min.get()
-    inputs.property "minecraftVersion", libs.versions.minecraft.get()
-    inputs.property "minPuzzlesVersion", libs.versions.puzzleslib.min.get()
-    inputs.property "resourcePackFormat", libs.versions.resources.get()
-    inputs.property "dataPackFormat", libs.versions.data.get()
-    inputs.property "modForgeDisplayTest", modForgeDisplayTest
-
     // replace stuff in mods.toml
     filesMatching('META-INF/mods.toml') {
         expand(
