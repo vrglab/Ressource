@@ -1,0 +1,395 @@
+println("Java: " + System.getProperty("java.version") + " JVM: " + System.getProperty("java.vm.version") + "(" + System.getProperty("java.vendor") + ") Arch: " + System.getProperty("os.arch"))
+
+allprojects {
+    apply plugin: "java"
+    apply plugin: "architectury-plugin"
+    apply plugin: "java-library"
+    apply plugin: "maven-publish"
+    apply plugin: "signing"
+    apply plugin: "idea"
+
+    archivesBaseName = "${mName.replaceAll("[^a-zA-Z]", "")}"
+    version = "v${mVersion}-${mcVersion}-${project.name}"
+    group = mMavenGroup
+
+    javadoc.options.addStringOption("Xdoclint:none", "-quiet")
+
+    repositories {
+        mavenCentral()
+        mavenLocal()
+        maven {
+            name = "Sponge"
+            url = "https://repo.spongepowered.org/repository/maven-public/"
+        }
+        maven {
+            name = "Jared"
+            url = "https://maven.blamejared.com/"
+        }
+        maven {
+            name = "Jitpack"
+            url = "https://jitpack.io"
+        }
+        maven {
+            name = "Shedaniel"
+            url = "https://maven.shedaniel.me/"
+        }
+        maven {
+            name = "Parchment"
+            url = "https://maven.parchmentmc.org"
+        }
+        maven {
+            name = "Vrglabs Mod"
+            url = "https://raw.githubusercontent.com/vrglab/Maven/master/"
+        }
+        maven {
+            name = "ModMaven"
+            url = "https://modmaven.dev"
+        }
+        maven {
+            name = "AppleSkin"
+            url "https://maven.ryanliptak.com/"
+        }
+        flatDir {
+            dirs "libs"
+        }
+        exclusiveContent {
+            forRepository {
+                maven {
+                    name = "CurseForge"
+                    url = "https://cursemaven.com"
+                }
+            }
+            filter {
+                includeGroup "curse.maven"
+            }
+        }
+        exclusiveContent {
+            forRepository {
+                maven {
+                    name = "Modrinth"
+                    url = "https://api.modrinth.com/maven"
+                }
+            }
+            filter {
+                includeGroup "maven.modrinth"
+            }
+        }
+    }
+
+    tasks.withType(JavaCompile).configureEach {
+        options.encoding = "UTF-8"
+        options.release = jVersion as Integer
+    }
+
+    java {
+        withSourcesJar()
+        withJavadocJar()
+        toolchain.languageVersion = JavaLanguageVersion.of(jVersion)
+    }
+
+    tasks.withType(Jar).configureEach {
+        duplicatesStrategy DuplicatesStrategy.EXCLUDE
+
+        from rootProject.file("../LICENSE.md")
+        from rootProject.file("../LICENSE-ASSETS.md")
+        from rootProject.file("../LICENSE-FORGE.md")
+        from rootProject.file("../LICENSE-NIGHT-CONFIG.md")
+        from rootProject.file("../LICENSING.md")
+        from rootProject.file("CHANGELOG.md")
+
+        manifest {
+            attributes([
+                    "Specification-Title"           : mName,
+                    "Specification-Version"         : mVersion,
+                    "Specification-Vendor"          : mAuthor,
+                    "Implementation-Title"          : mName,
+                    "Implementation-Version"        : mVersion,
+                    "Implementation-Vendor"         : mAuthor,
+                    "Implementation-Timestamp"      : new Date().format("yyyy-MM-dd'T'HH:mm:ssZ"),
+                    "Implementation-Timestamp-Milli": System.currentTimeMillis(),
+                    "Implementation-URL"            : mSourceUrl,
+                    "Built-On-Java"                 : "${System.getProperty("java.vm.version")} (${System.getProperty("java.vm.vendor")})",
+                    "Built-On-Minecraft"            : mcVersion
+            ])
+        }
+
+        group "jar"
+    }
+
+    tasks.withType(GenerateModuleMetadata) {
+        enabled = false
+    }
+}
+
+subprojects {
+    apply plugin: "dev.architectury.loom"
+    apply plugin: "me.hypherionmc.cursegradle"
+    apply plugin: "com.modrinth.minotaur"
+
+    loom {
+        silentMojangMappingsLicense()
+        mixin {
+            useLegacyMixinAp = true
+            defaultRefmapName = "${modId}.${project.name.toLowerCase()}.refmap.json"
+        }
+    }
+
+    dependencies {
+        minecraft "com.mojang:minecraft:${mcVersion}"
+        mappings loom.layered() {
+            parchment("org.parchmentmc.data:parchment-${parchMcVersion}:${parchVersion}")
+            officialMojangMappings {
+                setNameSyntheticMembers(true)
+            }
+        }
+    }
+
+    processResources {
+        duplicatesStrategy DuplicatesStrategy.EXCLUDE
+
+        var fileNames = [
+                "^common.mixins.json\$": "${modId}.common.mixins.json",
+                "^fabric.mixins.json\$": "${modId}.fabric.mixins.json",
+                "^neoforge.mixins.json\$": "${modId}.neoforge.mixins.json",
+                "^forge.mixins.json\$": "${modId}.forge.mixins.json"
+        ]
+
+        fileNames.forEach {from, to -> rename from, to }
+
+        var resourceProperties = [
+                "modId": modId,
+                "modName": mName,
+                "modVersion": mVersion,
+                "modDescription": mDescription,
+                "modGroup": project.group,
+                "modPageUrl": mSourceUrl,
+                "modIssueUrl": mIssueUrl,
+                "modUpdateUrl": mUpdateUrl,
+                "modAuthor": mAuthor,
+                "modLicense": mLicense,
+                "minFabricVersion": minFabricVer,
+                "minFabricApiVersion": minFabricApiVer,
+                "minForgeFMLVersion": "1",
+                "minForgeVersion": minForgeVer,
+                "minNeoForgeFMLVersion": "1",
+                "minNeoForgeVersion": minNeoForgeVer,
+                "minecraftVersion": mcVersion,
+                "resourcePackFormat": rpVer,
+                "dataPackFormat": dpVer,
+                "mainEntryPoint": "${project.group}.fabric.${archivesBaseName}Fabric",
+                "clientEntryPoint": "${project.group}.fabric.client.${archivesBaseName}FabricClient",
+                "modFabricEnvironment": modFabricEnvironment,
+                "modForgeDisplayTest": modForgeDisplayTest
+        ]
+
+        inputs.properties resourceProperties
+
+        var matchingFiles = [
+                "pack.mcmeta",
+                "fabric.mod.json",
+                "META-INF/neoforge.mods.toml",
+                "META-INF/mods.toml",
+                modId + ".common.mixins.json",
+                modId + ".fabric.mixins.json",
+                modId + ".neoforge.mixins.json",
+                modId + ".forge.mixins.json",
+                "common.mixins.json",
+                "fabric.mixins.json",
+                "neoforge.mixins.json",
+                "forge.mixins.json"
+        ]
+
+        filesMatching(matchingFiles) {
+            expand resourceProperties + [project: project]
+        }
+    }
+
+    publishing {
+        publications {
+            mavenJava(MavenPublication) {
+                artifactId = "${modId}-${project.name.toLowerCase()}"
+                version = mVersion
+                from components.java
+                pom {
+                    name = "${modName} [${project.name}]"
+                    description = "${mDescription}"
+                    url = "${mSourceUrl}"
+                    scm {
+                        url = "${mSourceUrl}"
+                        connection = "${mSourceUrl}".replace("https", "scm:git:git").concat(".git")
+                        developerConnection = "${mSourceUrl}".replace("https://github.com/", "scm:git:git@github.com:").concat(".git")
+                    }
+                    issueManagement {
+                        system = "github"
+                        url = "${mIssueUrl}"
+                    }
+                    licenses {
+                        license {
+                            name = "${mLicense}"
+                            url = "https://spdx.org/licenses/${mLicense}.html"
+                        }
+                    }
+                    developers {
+                        developer {
+                            id = "${mAuthor}".toLowerCase()
+                            name = "${mAuthor}"
+                        }
+                    }
+                }
+            }
+        }
+        repositories {
+            maven {
+                name = "VrglabMRes"
+                url "file://" + project.hasProperty("modResources") ? "${project.findProperty("modResources")}/maven" : System.getenv("local_maven")
+            }
+        }
+    }
+
+    signing {
+        sign publishing.publications.mavenJava
+    }
+
+    curseforge {
+        if (!file("../CHANGELOG.md").canRead()) {
+            throw new FileNotFoundException("Could not read changelog file")
+        }
+        apiKey = project.hasProperty("curseApiToken") ? project.findProperty("curseApiToken") : ""
+        project {
+            id = projectCurseForgeId
+            changelogType = "markdown"
+            changelog = file("../CHANGELOG.md")
+            releaseType = projectReleaseType
+            addGameVersion project.name
+            addGameVersion mcVersion
+            mainArtifact(remapJar) {
+                displayName = "[${project.name.toUpperCase()}] [${mcVersion}] ${archivesBaseName}-v${mVersion}"
+                var requiredDependencies = "dependenciesRequired${project.name}CurseForge"
+                var embeddedDependencies = "dependenciesEmbedded${project.name}CurseForge"
+                var optionalDependencies = "dependenciesOptional${project.name}CurseForge"
+                if (project.hasProperty(requiredDependencies) || project.hasProperty(embeddedDependencies) || project.hasProperty(optionalDependencies)) {
+                    relations {
+                        if (project.hasProperty(requiredDependencies)) {
+                            (project.findProperty(requiredDependencies) as String).split(",").each {
+                                requiredDependency it.trim()
+                            }
+                        }
+                        if (project.hasProperty(embeddedDependencies)) {
+                            (project.findProperty(embeddedDependencies) as String).split(",").each {
+                                embeddedLibrary it.trim()
+                            }
+                        }
+                        if (project.hasProperty(optionalDependencies)) {
+                            (project.findProperty(optionalDependencies) as String).split(",").each {
+                                optionalDependency it.trim()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        options {
+//            debug = true
+            javaVersionAutoDetect = false
+            forgeGradleIntegration = false
+            fabricIntegration = false
+            detectFabricApi = false
+        }
+    }
+
+    modrinth {
+        if (!file("../CHANGELOG.md").canRead()) {
+            throw new FileNotFoundException("Could not read changelog file")
+        }
+        token = project.hasProperty("modrinthPersonalAccessToken") ? project.findProperty("modrinthPersonalAccessToken") : ""
+        projectId = projectModrinthId
+        versionNumber = project.version
+        versionName = "[${project.name.toUpperCase()}] [${mcVersion}] ${archivesBaseName}-v${mVersion}"
+        changelog = file("../CHANGELOG.md").text
+        versionType = projectReleaseType
+        uploadFile = remapJar
+        loaders.add project.name.toLowerCase()
+        gameVersions.add mcVersion
+        var requiredDependencies = "dependenciesRequired${project.name}Modrinth"
+        var embeddedDependencies = "dependenciesEmbedded${project.name}Modrinth"
+        var optionalDependencies = "dependenciesOptional${project.name}Modrinth"
+        if (project.hasProperty(requiredDependencies) || project.hasProperty(embeddedDependencies) || project.hasProperty(optionalDependencies)) {
+            dependencies {
+                if (project.hasProperty(requiredDependencies)) {
+                    (project.findProperty(requiredDependencies) as String).split(",").each {
+                        required.project it.trim()
+                    }
+                }
+                if (project.hasProperty(embeddedDependencies)) {
+                    (project.findProperty(embeddedDependencies) as String).split(",").each {
+                        embedded.project it.trim()
+                    }
+                }
+                if (project.hasProperty(optionalDependencies)) {
+                    (project.findProperty(optionalDependencies) as String).split(",").each {
+                        optional.project it.trim()
+                    }
+                }
+            }
+        }
+//	    debugMode = true
+    }
+
+
+    task refreshUpdateJson {
+        onlyIf { project.hasProperty("modResources") }
+        doLast {
+            var updateFile = file(project.findProperty("modResources").concat(File.separator).concat("update").concat(File.separator).concat("${modId}").concat(".json"))
+            var updateJson
+            if (updateFile.exists() && updateFile.canRead()) {
+                updateJson = new groovy.json.JsonSlurper().parseText(updateFile.text)
+                updateJson["promos"]["${mcVersion}-latest"] = "${mVersion}"
+                if ("${mVersion}".matches("[^a-zA-Z]+")) {
+                    updateJson["promos"]["${mcVersion}-recommended"] = "${mVersion}"
+                }
+            } else {
+                var builder = new groovy.json.JsonBuilder()
+                updateJson = builder {
+                    homepage "${mSourceUrl}"
+                    promos {
+                        "${mcVersion}-latest" "${mVersion}"
+                        if ("${mVersion}".matches("[^a-zA-Z]+")) {
+                            "${mcVersion}-recommended" "${mVersion}"
+                        }
+                    }
+                }
+            }
+            var output = new groovy.json.JsonOutput()
+            updateFile.write(output.prettyPrint(output.toJson(updateJson)))
+        }
+    }
+
+    task copyJarToDir(type: Copy) {
+        onlyIf { project.hasProperty("buildJarOutputDir") && project.hasProperty("uniqueBuildNumber") }
+        if (project.findProperty("copyBuildJar").toBoolean()) {
+            from remapJar
+            into project.findProperty("buildJarOutputDir")
+            rename { fileName -> fileName.replace("v${mVersion}", "v${mVersion}.${uniqueBuildNumber}") }
+        }
+    }
+
+    task incrementBuildNumber {
+        onlyIf { project.hasProperty("uniqueBuildNumber") }
+        doLast {
+            var propertiesName = "gradle.properties"
+            var propertiesFile = new File(project.gradle.gradleUserHomeDir, propertiesName)
+            if (!propertiesFile.canRead()) { throw new FileNotFoundException("Could not read file ".concat(propertiesName)) }
+            var buildNumberMatcher = java.util.regex.Pattern.compile("uniqueBuildNumber=(\\d+)").matcher(propertiesFile.getText())
+            buildNumberMatcher.find()
+            var versionCode = Integer.parseInt(buildNumberMatcher.group(1))
+            var propertiesContent = buildNumberMatcher.replaceAll("uniqueBuildNumber=" + ++versionCode)
+            propertiesFile.write(propertiesContent)
+        }
+    }
+
+    build.finalizedBy project.tasks.copyJarToDir, project.tasks.incrementBuildNumber
+}
+
+architectury {
+    minecraft = mcVersion
+}
