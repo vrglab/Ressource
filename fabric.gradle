@@ -1,23 +1,18 @@
-plugins {
-    id 'fabric-loom' version '0.8.20' // Replace with the latest version
-}
-
-repositories {
-    maven {
-        name = "Fabric"
-        url = "https://maven.fabricmc.net/"
-    }
-    mavenCentral()
-}
 apply plugin: 'io.github.juuxel.loom-quiltflower'
 apply plugin: 'me.hypherionmc.cursegradle'
 apply plugin: 'com.modrinth.minotaur'
+apply plugin: 'fabric-loom'
 
 archivesBaseName = "${mName.replaceAll("[^a-zA-Z]", "")}"
 version = "v${mVersion}-${mcVersion}-Fabric"
 group = mMavenGroup
 
 repositories {
+     maven {
+        name = "Fabric"
+        url = "https://maven.fabricmc.net/"
+    }
+    mavenCentral()
     exclusiveContent {
         forRepository {
             maven {
