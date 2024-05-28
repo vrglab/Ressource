@@ -1,0 +1,113 @@
+apply plugin: "com.github.johnrengelman.shadow"
+
+architectury {
+    platformSetupLoomIde()
+    forge()
+}
+
+loom {
+    accessWidenerPath = project(":common").loom.accessWidenerPath
+
+    forge {
+        convertAccessWideners = true
+        extraAccessWideners.add loom.accessWidenerPath.get().asFile.name
+
+        if (project(":common").file("src/main/resources/${modId}.common.mixins.json").exists() || project(":common").file("src/main/resources/common.mixins.json").exists()) {
+            mixinConfig "${modId}.common.mixins.json"
+        }
+        if (project.file("src/main/resources/${modId}.forge.mixins.json").exists() || project.file("src/main/resources/forge.mixins.json").exists()) {
+            mixinConfig "${modId}.forge.mixins.json"
+        }
+    }
+
+    runs {
+        configureEach {
+            ideConfigGenerated(true)
+            runDir("../run")
+            vmArgs("-Xms1G", "-Xmx4G", "-Dmixin.debug.export=true")
+        }
+        client {
+            client()
+            setConfigName("Forge Client ${mcVersion}")
+            programArgs("--username", "Player####")
+        }
+        server {
+            server()
+            setConfigName("Forge Server ${mcVersion}")
+        }
+        data {
+            data()
+            setConfigName("Forge Data ${mcVersion}")
+            programArgs("--all", "--mod", modId)
+            programArgs("--existing", project(":common").file("src/main/resources").absolutePath)
+            programArgs("--output", project(":common").file("src/generated/resources").absolutePath)
+        }
+    }
+}
+
+configurations {
+    common
+    shadowCommon
+    compileClasspath.extendsFrom common
+    runtimeClasspath.extendsFrom common
+    developmentForge.extendsFrom common
+}
+
+repositories {
+    maven {
+        name = "Minecraft Forge"
+        url = "https://maven.minecraftforge.net/"
+    }
+}
+
+dependencies {
+    common(project(path: ":common", configuration: "namedElements")) { transitive false }
+    shadowCommon(project(path: ":common", configuration: "transformProductionForge")) { transitive = false }
+
+    // Minecraft Forge
+    forge libs.minecraftforge.forge
+
+    var versionCatalog = rootProject.extensions.getByType(VersionCatalogsExtension).named("libs")
+
+    versionCatalog.findLibrary("bettermodsbutton.forge").ifPresent {
+        modLocalRuntime(it.get()) {
+            transitive = false
+        }
+    }
+}
+
+tasks.withType(Jar).configureEach {
+    exclude "architectury.common.json"
+}
+
+sourceSets.each {
+    var dir = layout.buildDirectory.dir("sourcesSets/${it.name}")
+    it.java.destinationDirectory = dir
+    it.output.resourcesDir = dir
+}
+
+shadowJar {
+    configurations = [project.configurations.shadowCommon]
+    archiveClassifier = "dev-shadow"
+}
+
+remapJar {
+    input.set shadowJar.archiveFile
+    dependsOn shadowJar
+    archiveClassifier = ""
+    atAccessWideners.add("${modId}.accesswidener")
+}
+
+sourcesJar {
+    def commonSources = project(":common").sourcesJar
+    dependsOn commonSources
+    from commonSources.archiveFile.map { zipTree(it) }
+}
+
+components.java {
+    withVariantsFromConfiguration(project.configurations.shadowRuntimeElements) {
+        skip()
+    }
+}
+
+[tasks.modrinth, tasks.curseforge].each { it.finalizedBy project.tasks.refreshUpdateJson }
