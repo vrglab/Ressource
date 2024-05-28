@@ -290,6 +290,3 @@ task copyJarToDir(type: Copy) {
         rename { fileName -> fileName.replace("v${mVersion}", "v${mVersion}.${uniqueBuildNumber}") }
     }
 }
-
-build.finalizedBy project.tasks.copyJarToDir, rootProject.tasks.incrementBuildNumber
-
