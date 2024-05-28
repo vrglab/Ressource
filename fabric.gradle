@@ -1,98 +1,295 @@
-apply plugin: "com.github.johnrengelman.shadow"
+apply plugin: 'fabric-loom'
+apply plugin: 'io.github.juuxel.loom-quiltflower'
+apply plugin: 'me.hypherionmc.cursegradle'
+apply plugin: 'com.modrinth.minotaur'
 
-architectury {
-    platformSetupLoomIde()
-    fabric()
-}
-
-loom {
-    accessWidenerPath = project(":common").loom.accessWidenerPath
-
-    runs {
-        configureEach {
-            ideConfigGenerated(true)
-            runDir("../run")
-            vmArgs("-Xms1G", "-Xmx4G", "-Dmixin.debug.export=true")
-        }
-        client {
-            client()
-            setConfigName("Fabric Client ${mcVersion}")
-        }
-        server {
-            server()
-            setConfigName("Fabric Server ${mcVersion}")
-        }
-    }
-}
-
-configurations {
-    common
-    shadowCommon
-    compileClasspath.extendsFrom common
-    runtimeClasspath.extendsFrom common
-    developmentFabric.extendsFrom common
-}
+archivesBaseName = "${mName.replaceAll("[^a-zA-Z]", "")}"
+version = "v${mVersion}-${mcVersion}-Fabric"
+group = mMavenGroup
 
 repositories {
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = "CurseForge"
+                url = "https://cursemaven.com"
+            }
+        }
+        filter {
+            includeGroup "curse.maven"
+        }
+    }
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = "Modrinth"
+                url = "https://api.modrinth.com/maven"
+            }
+        }
+        filter {
+            includeGroup "maven.modrinth"
+        }
+    }
     maven {
         name = "Modmuss"
         url = "https://maven.modmuss50.me/"
     }
     maven {
-        name = "ladysnake"
-        url = "https://maven.ladysnake.org/releases"
+        name = 'Ladysnake'
+        url = 'https://maven.ladysnake.org/releases'
     }
     maven {
-        name = "jamieswhiteshirt"
+        name = "JamiesWhiteShirt"
         url = "https://maven.jamieswhiteshirt.com/libs-release/"
     }
 }
 
 dependencies {
     // Common Project
-    common(project(path: ":common", configuration: "namedElements")) { transitive false }
-    shadowCommon(project(path: ":common", configuration: "transformProductionFabric")) { transitive false }
+    compileOnly(project(path: ":common", configuration: "namedElements")) {
+        transitive = false
+    }
+
+    // Minecraft
+    minecraft "com.mojang:minecraft:${mcVersion}"
+    mappings loom.layered() {
+        parchment("org.parchmentmc.data:parchment-${parchMcVersion}:${parchVersion}")
+        officialMojangMappings {
+            setNameSyntheticMembers(true)
+        }
+    }
 
     // Fabric Loader
-    modApi libs.fabricloader.fabric
+    modImplementation "net.fabricmc:fabric-loader:${minFabricVer}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${minFabricApiVer}+${mcVersion}"
+}
 
-    var versionCatalog = rootProject.extensions.getByType(VersionCatalogsExtension).named("libs")
+loom {
+    mixin.defaultRefmapName = "${modId}.refmap.json"
 
-    versionCatalog.findLibrary("modmenu.fabric").ifPresent {
-        modLocalRuntime(it.get()) {
-            transitive = false
+    runs {
+        configureEach {
+            ideConfigGenerated(true)
+            runDir("../run")
+            vmArg '-Dmixin.debug.export=true'
+        }
+        client {
+            client()
+            setConfigName("Fabric Client-${mcVersion}")
+        }
+        server {
+            server()
+            setConfigName("Fabric Server-${mcVersion}")
         }
     }
 }
 
-tasks.withType(Jar).configureEach {
-    exclude "architectury.common.json"
+processResources {
+    from(project(":common").sourceSets.main.resources)
+    from(project(":Forge").file('src/generated/resources')) {
+        exclude('.cache/')
+    }
+    // Forge's data gen doesn't work with assets placed in the common project, so we place them in Forge and include them here
+    from(project(":Forge").sourceSets.main.resources) {
+        include("assets/")
+        include("data/")
+    }
+
+    duplicatesStrategy DuplicatesStrategy.INCLUDE
+
+    // this will ensure that this task is redone when a value changes
+    inputs.property "modId", modId
+    inputs.property "modName", mName
+    inputs.property "mVersion", mVersion
+    inputs.property "modDescription", mDescription
+    inputs.property "modGroup", project.group
+    inputs.property "modPageUrl", mSourceUrl
+    inputs.property "modIssueUrl", mIssueUrl
+    inputs.property "modAuthor", mAuthor
+    inputs.property "modLicense", mLicense
+    inputs.property "minFabricVersion", minFabricVer
+    inputs.property "minFabricApiVersion", minFabricApiVer
+    inputs.property "minecraftVersion", mcVersion
+    inputs.property "resourcePackFormat", rpVer
+    inputs.property "dataPackFormat", dpVer
+    inputs.property "mainEntryPoint", "${project.group}.${archivesBaseName}Fabric"
+    inputs.property "clientEntryPoint", "${project.group}.client.${archivesBaseName}FabricClient"
+
+    // replace stuff in fabric.mod.json
+    filesMatching('fabric.mod.json') {
+        expand(
+                'modId': modId,
+                'modName': mName,
+                'mVersion': mVersion,
+                'modDescription': mDescription,
+                'modGroup': project.group,
+                'modPageUrl': moourceUrl,
+                'modIssueUrl': mIssueUrl,
+                'modAuthor': mAuthor,
+                'modLicense': mLicense,
+                'minFabricVersion': minFabricVer,
+                'minFabricApiVersion': minFabricApiVer,
+                'minecraftVersion': mcVersion,
+                "mainEntryPoint": "${project.group}.${archivesBaseName}Fabric",
+                "clientEntryPoint": "${project.group}.client.${archivesBaseName}FabricClient"
+        )
+    }
+
+    // replace stuff in pack.mcmeta
+    filesMatching('pack.mcmeta') {
+        expand(
+                'modDescription': mDescription,
+                "resourcePackFormat": rpVer,
+                "dataPackFormat": dpVer
+        )
+    }
 }
 
-shadowJar {
-    configurations = [project.configurations.shadowCommon]
-    archiveClassifier = "dev-shadow"
-}
-
-remapJar {
-    input.set shadowJar.archiveFile
-    dependsOn shadowJar
-    archiveClassifier = ""
-    injectAccessWidener = true
-}
-
-jar {
-    archiveClassifier = "dev"
+compileJava {
+    source project(":common").sourceSets.main.allSource
 }
 
 sourcesJar {
-    def commonSources = project(":common").sourcesJar
-    dependsOn commonSources
-    from commonSources.archiveFile.map { zipTree(it) }
+    from project(":common").sourceSets.main.allJava
 }
 
-components.java {
-    withVariantsFromConfiguration(project.configurations.shadowRuntimeElements) {
-        skip()
+javadoc {
+    source project(":common").sourceSets.main.allJava
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            artifactId = "${modId}-fabric"
+            version = mVersion
+            from components.java
+            pom {
+                name = "${mName} [Fabric]"
+                description = "${mDescription}"
+                url = "${mSourceUrl}"
+                scm {
+                    url = "${modSourceUrl}"
+                    connection = "${mSourceUrl}".replace("https", "scm:git:git").concat(".git")
+                    developerConnection = "${mSourceUrl}".replace("https://github.com/", "scm:git:git@github.com:").concat(".git")
+                }
+                issueManagement {
+                    system = 'github'
+                    url = "${mIssueUrl}"
+                }
+                licenses {
+                    license {
+                        name = "${mLicense}"
+                        url = "https://spdx.org/licenses/${mLicense}.html"
+                    }
+                }
+                developers {
+                    developer {
+                        id = "${mAuthor}".toLowerCase()
+                        name = "${mAuthor}"
+                    }
+                }
+            }
+        }
+    }
+    repositories {
+        maven {
+            name = 'VrglabResources'
+            url "file://" + project.hasProperty('modResources') ? "${project.findProperty('modResources')}/maven" : System.getenv('local_maven')
+        }
     }
 }
+
+signing {
+    sign publishing.publications.mavenJava
+}
+
+curseforge {
+    if (!file('../CHANGELOG.md').canRead()) {
+        throw new FileNotFoundException("Could not read changelog file")
+    }
+    apiKey = project.hasProperty('curseApiToken') ? project.findProperty('curseApiToken') : ''
+    project {
+        id = projectCurseForgeId
+        changelogType = 'markdown'
+        changelog = file('../CHANGELOG.md')
+        releaseType = projectReleaseType
+        addGameVersion 'Fabric'
+        addGameVersion mcVersion
+        mainArtifact(remapJar) {
+            displayName = "[FABRIC] [${mcVersion}] ${archivesBaseName}-v${mVersion}"
+            if (project.hasProperty("dependenciesRequiredFabricCurseForge") || project.hasProperty("dependenciesEmbeddedFabricCurseForge") || project.hasProperty("dependenciesOptionalFabricCurseForge")) {
+                relations {
+                    if (project.hasProperty("dependenciesRequiredFabricCurseForge")) {
+                        (project.findProperty("dependenciesRequiredFabricCurseForge") as String).split(",").each {
+                            requiredDependency it.trim()
+                        }
+                    }
+                    if (project.hasProperty("dependenciesEmbeddedFabricCurseForge")) {
+                        (project.findProperty("dependenciesEmbeddedFabricCurseForge") as String).split(",").each {
+                            embeddedLibrary it.trim()
+                        }
+                    }
+                    if (project.hasProperty("dependenciesOptionalFabricCurseForge")) {
+                        (project.findProperty("dependenciesOptionalFabricCurseForge") as String).split(",").each {
+                            optionalDependency it.trim()
+                        }
+                    }
+                }
+            }
+        }
+    }
+    options {
+//        debug = true
+        javaVersionAutoDetect = false
+        forgeGradleIntegration = false
+    }
+}
+
+modrinth {
+    if (!file('../CHANGELOG.md').canRead()) {
+        throw new FileNotFoundException("Could not read changelog file")
+    }
+    token = project.hasProperty('modrinthApiToken') ? project.findProperty('modrinthApiToken') : ''
+    projectId = projectModrinthId
+    versionNumber = project.version
+    versionName = "[FABRIC] [${mcVersion}] ${archivesBaseName}-v${mVersion}"
+    changelog = file('../CHANGELOG.md').text
+    versionType = projectReleaseType
+    uploadFile = remapJar
+    loaders.add 'fabric'
+    gameVersions.add mcVersion
+    if (project.hasProperty("dependenciesRequiredFabricModrinth") || project.hasProperty("dependenciesEmbeddedFabricModrinth") || project.hasProperty("dependenciesOptionalFabricModrinth")) {
+        dependencies {
+            if (project.hasProperty("dependenciesRequiredFabricModrinth")) {
+                (project.findProperty("dependenciesRequiredFabricModrinth") as String).split(",").each {
+                    required.project it.trim()
+                }
+            }
+            if (project.hasProperty("dependenciesEmbeddedFabricModrinth")) {
+                (project.findProperty("dependenciesEmbeddedFabricModrinth") as String).split(",").each {
+                    embedded.project it.trim()
+                }
+            }
+            if (project.hasProperty("dependenciesOptionalFabricModrinth")) {
+                (project.findProperty("dependenciesOptionalFabricModrinth") as String).split(",").each {
+                    optional.project it.trim()
+                }
+            }
+        }
+    }
+//	debugMode = true
+}
+
+task copyJarToDir(type: Copy) {
+    onlyIf { project.hasProperty('buildJarOutputDir') && project.hasProperty('uniqueBuildNumber') }
+    if (project.findProperty('copyBuildJar').toBoolean()) {
+        from remapJar
+        into project.findProperty('buildJarOutputDir')
+        // add build number to be able to distinguish jars when testing thorough official launcher
+        // build number is stored in global gradle.properties
+        rename { fileName -> fileName.replace("v${mVersion}", "v${mVersion}.${uniqueBuildNumber}") }
+    }
+}
+
+build.finalizedBy project.tasks.copyJarToDir, rootProject.tasks.incrementBuildNumber
+
