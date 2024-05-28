@@ -1,5 +1,14 @@
-apply plugin: 'fabric-loom'
-apply plugin: 'io.github.juuxel.loom-quiltflower'
+plugins {
+    id 'fabric-loom' version '0.8.20'
+}
+
+repositories {
+    maven {
+        name = "Fabric"
+        url = "https://maven.fabricmc.net/"
+    }
+    mavenCentral()
+}
 
 archivesBaseName = "${mName.replaceAll("[^a-zA-Z]", "")}"
 version = "v${mVersion}-${mcVersion}-Common"
